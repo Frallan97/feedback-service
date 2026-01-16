@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "feedback-service.fullname" . }}-backend
+  labels:
+    app: {{ include "feedback-service.name" . }}-backend
+    chart: {{ include "feedback-service.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: {{ .Values.service.backend.port }}
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: {{ include "feedback-service.name" . }}-backend
+    release: {{ .Release.Name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "feedback-service.fullname" . }}-frontend
+  labels:
+    app: {{ include "feedback-service.name" . }}-frontend
+    chart: {{ include "feedback-service.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: {{ .Values.service.frontend.port }}
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: {{ include "feedback-service.name" . }}-frontend
+    release: {{ .Release.Name }}

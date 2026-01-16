@@ -1,0 +1,98 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "feedback-service.fullname" . }}-postgresql
+  labels:
+    app: {{ include "feedback-service.name" . }}-postgresql
+    chart: {{ include "feedback-service.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: postgresql
+    port: 5432
+    targetPort: postgresql
+  selector:
+    app: {{ include "feedback-service.name" . }}-postgresql
+    release: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "feedback-service.fullname" . }}-postgresql
+  labels:
+    app: {{ include "feedback-service.name" . }}-postgresql
+    chart: {{ include "feedback-service.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  serviceName: {{ include "feedback-service.fullname" . }}-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "feedback-service.name" . }}-postgresql
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "feedback-service.name" . }}-postgresql
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: postgresql
+        image: postgres:15-alpine
+        ports:
+        - name: postgresql
+          containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: {{ .Values.postgresql.auth.username | quote }}
+        - name: POSTGRES_PASSWORD
+          value: {{ .Values.postgresql.auth.password | quote }}
+        - name: POSTGRES_DB
+          value: {{ .Values.postgresql.auth.database | quote }}
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U {{ .Values.postgresql.auth.username }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U {{ .Values.postgresql.auth.username }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.postgresql.primary.resources | nindent 10 }}
+  {{- if .Values.postgresql.primary.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.postgresql.primary.persistence.size }}
+  {{- else }}
+  volumes:
+  - name: data
+    emptyDir: {}
+  {{- end }}
+{{- end }}

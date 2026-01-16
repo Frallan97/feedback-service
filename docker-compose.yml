@@ -1,0 +1,101 @@
+services:
+  # Auth Service Database
+  auth-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: authuser
+      POSTGRES_PASSWORD: authpass
+      POSTGRES_DB: authdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authuser -d authdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth Service Backend (reference existing auth-service)
+  auth-service:
+    build:
+      context: ../auth-service/backend
+    environment:
+      PORT: 8081
+      DATABASE_URL: postgresql://authuser:authpass@auth-db:5432/authdb?sslmode=disable
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URL: http://localhost:8081/api/auth/google/callback
+      ALLOWED_ORIGINS: http://localhost:5173,http://localhost:5174
+      ENVIRONMENT: development
+      DEBUG: "true"
+      MIGRATIONS_PATH: file:///app/migrations
+    ports:
+      - "8081:8081"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    volumes:
+      - ../auth-service/backend/keys:/app/keys:ro
+
+  # Feedback Service Database
+  feedback-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: feedbackuser
+      POSTGRES_PASSWORD: feedbackpass
+      POSTGRES_DB: feedbackdb
+    ports:
+      - "5434:5432"
+    volumes:
+      - feedback_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feedbackuser -d feedbackdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Feedback Service Backend
+  feedback-backend:
+    build:
+      context: ./backend
+      target: development
+    environment:
+      DATABASE_URL: postgresql://feedbackuser:feedbackpass@feedback-db:5432/feedbackdb?sslmode=disable
+      PORT: 8082
+      ENVIRONMENT: development
+      DEBUG: "true"
+      AUTH_SERVICE_URL: http://auth-service:8081
+      JWT_PUBLIC_KEY_URL: http://auth-service:8081/api/public-key
+      ALLOWED_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:3000
+      CASBIN_MODEL_PATH: ./config/casbin_model.conf
+    ports:
+      - "8082:8082"
+    depends_on:
+      feedback-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - /app/tmp
+
+  # Feedback Service Frontend (Admin Dashboard)
+  feedback-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      VITE_API_URL: http://localhost:8082/api/v1
+      VITE_AUTH_SERVICE_URL: http://localhost:8081
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - feedback-backend
+
+volumes:
+  feedback_postgres_data:
+  auth_postgres_data:

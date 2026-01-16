@@ -1,0 +1,16 @@
+FROM oven/bun:1-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json bun.lock ./
+
+# Install dependencies
+RUN bun install
+
+# Copy source
+COPY . .
+
+EXPOSE 5173
+
+CMD ["bun", "dev", "--host"]

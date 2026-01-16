@@ -1,0 +1,46 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "feedback-service.fullname" . }}
+  labels:
+    app: {{ include "feedback-service.name" . }}
+    chart: {{ include "feedback-service.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "feedback-service.fullname" $ }}-{{ .backend }}
+                port:
+                  {{- if eq .backend "backend" }}
+                  number: {{ $.Values.service.backend.port }}
+                  {{- else }}
+                  number: {{ $.Values.service.frontend.port }}
+                  {{- end }}
+          {{- end }}
+    {{- end }}
+{{- end }}

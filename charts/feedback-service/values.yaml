@@ -1,0 +1,99 @@
+replicaCount: 2
+
+image:
+  backend:
+    repository: ghcr.io/frallan97/feedback-service-backend
+    tag: latest
+    pullPolicy: Always
+  frontend:
+    repository: ghcr.io/frallan97/feedback-service-frontend
+    tag: latest
+    pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  backend:
+    port: 8082
+  frontend:
+    port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: feedback-api.vibeoholic.com
+      paths:
+        - path: /
+          pathType: Prefix
+          backend: backend
+    - host: feedback.vibeoholic.com
+      paths:
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls:
+    - secretName: feedback-tls
+      hosts:
+        - feedback-api.vibeoholic.com
+        - feedback.vibeoholic.com
+
+postgresql:
+  enabled: true
+  auth:
+    username: feedbackuser
+    password: feedbackpass
+    database: feedbackdb
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+backend:
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "1000m"
+  env:
+    PORT: "8082"
+    ENVIRONMENT: "production"
+    DEBUG: "false"
+    AUTH_SERVICE_URL: "http://auth-service.auth-service.svc.cluster.local:8081"
+    JWT_PUBLIC_KEY_URL: "http://auth-service.auth-service.svc.cluster.local:8081/api/public-key"
+    ALLOWED_ORIGINS: "https://feedback.vibeoholic.com,https://tickets.vibeoholic.com"
+    CASBIN_MODEL_PATH: "./config/casbin_model.conf"
+
+frontend:
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"
+  env:
+    VITE_API_URL: "https://feedback-api.vibeoholic.com/api/v1"
+    VITE_AUTH_SERVICE_URL: "https://auth.vibeoholic.com"
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
