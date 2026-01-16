@@ -20,10 +20,8 @@ func GetComments(w http.ResponseWriter, r *http.Request) {
 	feedbackID := vars["id"]
 
 	// Get user from context
-	var userID uuid.UUID
 	var isAdmin bool
 	if claims, ok := middleware.GetUserClaims(r.Context()); ok {
-		userID = claims.UserID
 		isAdmin = claims.Role == "admin"
 	}
 
